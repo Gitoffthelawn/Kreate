@@ -52,7 +52,6 @@ import app.kreate.android.themed.rimusic.component.Visual
 import app.kreate.android.utils.innertube.toSong
 import app.kreate.android.utils.scrollingText
 import app.kreate.database.models.Song
-import app.kreate.util.EXPLICIT_PREFIX
 import it.fast4x.innertube.Innertube
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.colorPalette
@@ -91,6 +90,8 @@ object SongItem: Visual() {
 
     val itemShape: Shape by lazy { RoundedCornerShape(10.dp) }
     override val thumbnailRoundnessPercent: Preferences.Int = Preferences.SONG_THUMBNAIL_ROUNDNESS_PERCENT
+
+    override fun thumbnailSize() = DpSize(Preferences.SONG_THUMBNAIL_SIZE.value.dp, Preferences.SONG_THUMBNAIL_SIZE.value.dp)
 
     /**
      * Text is clipped if exceeds length limit, plus,
@@ -296,17 +297,17 @@ object SongItem: Visual() {
         isPlaying: Boolean = false ,
         isLiked: Boolean = false,
         showThumbnail: Boolean = true,
-        sizeDp: DpSize = DpSize(Dimensions.thumbnails.song, Dimensions.thumbnails.song),
+        sizeDp: DpSize = thumbnailSize(),
         thumbnailOverlay: @Composable BoxScope.() -> Unit = {}
     ) =
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = modifier.size( sizeDp )
+        Thumbnail(
+            url = thumbnailUrl,
+            modifier = modifier,
+            showThumbnail = showThumbnail,
+            contentScale = ContentScale.FillHeight,
+            sizeDp = sizeDp,
+            contentAlignment = Alignment.Center
         ) {
-            // Actual thumbnail (from cache or fetch from url)
-            if( showThumbnail )
-                Thumbnail( thumbnailUrl, ContentScale.FillHeight )
-
             if( isPlaying )
                 MusicAnimation(
                     color = values.nowPlayingIndicatorColor,
@@ -442,7 +443,7 @@ object SongItem: Visual() {
                     songId = song.id,
                     isRecommended = isRecommended,
                     isInPlaylistScreen = isInPlaylistScreen,
-                    isExplicit = song.title.startsWith(EXPLICIT_PREFIX),
+                    isExplicit = song.isExplicit,
                     values = values
                 )
 

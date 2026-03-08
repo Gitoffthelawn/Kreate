@@ -42,7 +42,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.Cache
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.analytics.PlaybackStats
 import androidx.media3.exoplayer.analytics.PlaybackStatsListener
@@ -58,18 +57,19 @@ import app.kreate.android.R
 import app.kreate.android.service.Discord
 import app.kreate.android.service.DownloadHelper
 import app.kreate.android.service.NetworkService
+import app.kreate.android.service.player.CustomExoPlayer
 import app.kreate.android.service.player.ExoPlayerListener
 import app.kreate.android.service.player.VolumeObserver
 import app.kreate.android.utils.centerCropBitmap
 import app.kreate.android.utils.centerCropToMatchScreenSize
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
+import app.kreate.android.utils.isLocalFile
 import app.kreate.android.widget.Widget
 import app.kreate.database.models.Event
+import app.kreate.database.models.PersistentQueue
 import app.kreate.database.models.Song
 import com.google.common.util.concurrent.MoreExecutors
-import com.metrolist.innertube.InnerTube
-import com.metrolist.innertube.pages.NewPipeUtils
 import dagger.hilt.android.AndroidEntryPoint
 import it.fast4x.innertube.Innertube
 import it.fast4x.innertube.models.NavigationEndpoint
@@ -118,7 +118,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import me.knighthat.impl.DownloadHelperImpl
@@ -139,10 +138,7 @@ import android.os.Binder as AndroidBinder
 import me.knighthat.innertube.Innertube as NewInnertube
 
 
-const val LOCAL_KEY_PREFIX = "local:"
-
-val MediaItem.isLocal get() = mediaId.startsWith(LOCAL_KEY_PREFIX)
-val Song.isLocal get() = id.startsWith(LOCAL_KEY_PREFIX)
+val MediaItem.isLocal get() = localConfiguration?.uri?.isLocalFile() ?: false
 
 @AndroidEntryPoint
 @UnstableApi
@@ -153,7 +149,7 @@ class PlayerServiceModern:
     Player.Listener
 {
     @Inject
-    lateinit var player: ExoPlayer
+    lateinit var player: CustomExoPlayer
 
     @Inject
     @Named("cache")
@@ -222,8 +218,6 @@ class PlayerServiceModern:
 
     @kotlin.OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     override fun onCreate() {
-        NewPipeUtils.client = NetworkService.engine
-        InnerTube.httpClient = NetworkService.client
         Innertube.client = NetworkService.client
 
         super.onCreate()
@@ -311,7 +305,7 @@ class PlayerServiceModern:
                         0,
                         Intent(this, MainActivity::class.java)
                             .putExtra("expandPlayerBottomSheet", true),
-                        PendingIntent.FLAG_IMMUTABLE
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                     )
                 )
                 .setBitmapLoader( CoilBitmapLoader(coroutineScope) )
@@ -418,6 +412,13 @@ class PlayerServiceModern:
 
         discord.register()
     }
+
+    override fun onUpdateNotification( session: MediaSession, startInForegroundRequired: Boolean ) =
+        try {
+            super.onUpdateNotification(session, startInForegroundRequired)
+        } catch( err: Exception ) {
+            Timber.tag( "PLayerServiceModern" ).e( err, "failed to update notification" )
+        }
 
     override fun onBind(intent: Intent?) = super.onBind(intent) ?: binder
 
@@ -757,32 +758,26 @@ class PlayerServiceModern:
     private fun maybeRestorePlayerQueue() {
         if ( !Preferences.ENABLE_PERSISTENT_QUEUE.value ) return
 
-        Database.asyncQuery {
-            val queuedSong = runBlocking {
-                queueTable.all().first()
+        CoroutineScope(Dispatchers.IO).launch {
+            val queue = Database.queueTable.allBlocking()
+
+            if( queue.isEmpty() ) {
+                Timber.tag( "PersistentQueue" ).i( "Persistent queue empty, not resuming!" )
+                return@launch
             }
 
-            if (queuedSong.isEmpty()) return@asyncQuery
-
-            val index = queuedSong.indexOfFirst { it.position != null }.coerceAtLeast(0)
-
-            runBlocking(Dispatchers.Main) {
-                player.setMediaItems(
-                    queuedSong.map { mediaItem ->
-                        mediaItem.mediaItem.buildUpon()
-                            .setUri(mediaItem.mediaItem.mediaId)
-                            .setCustomCacheKey(mediaItem.mediaItem.mediaId)
-                            .build().apply {
-                                mediaMetadata.extras?.putBoolean("isFromPersistentQueue", true)
-                            }
-                    },
-                    index,
-                    queuedSong[index].position ?: C.TIME_UNSET
-                )
+            val startIndex = queue.indexOfFirst { it.position != null }
+            val startPositionMs = queue[startIndex].position ?: C.TIME_UNSET
+            val mediaItems = withContext( Dispatchers.Default ) {
+                queue.map {
+                    it.song.asMediaItem.buildUpon().setTag( PersistentQueue.Tag ).build()
+                }
+            }
+            withContext( Dispatchers.Main ) {
+                player.setMediaItems( mediaItems, startIndex, startPositionMs )
                 player.prepare()
             }
         }
-
     }
 
 
@@ -853,7 +848,7 @@ class PlayerServiceModern:
             get() = bitmapProvider.bitmap
 
 
-        val player: ExoPlayer
+        val player: CustomExoPlayer
             get() = this@PlayerServiceModern.player
 
         val cache: Cache

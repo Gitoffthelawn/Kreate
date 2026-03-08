@@ -28,6 +28,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,8 +43,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMap
 import androidx.core.content.ContextCompat
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
@@ -52,8 +51,8 @@ import app.kreate.android.themed.rimusic.component.ItemSelector
 import app.kreate.android.themed.rimusic.component.Search
 import app.kreate.android.themed.rimusic.component.song.SongItem
 import app.kreate.android.themed.rimusic.component.tab.Sort
+import app.kreate.android.utils.shallowCompare
 import app.kreate.database.models.Song
-import app.kreate.util.EXPLICIT_PREFIX
 import it.fast4x.rimusic.LocalPlayerServiceBinder
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.typography
@@ -62,7 +61,6 @@ import it.fast4x.rimusic.ui.components.SwipeablePlaylistItem
 import it.fast4x.rimusic.ui.components.tab.toolbar.Button
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
-import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.bold
@@ -149,7 +147,7 @@ fun OnDeviceSong(
                }
     }
     LaunchedEffect( songsOnDevice, search.input, currentPath ) {
-        songsOnDevice.keys.filter { !parentalControlEnabled || !it.title.startsWith( EXPLICIT_PREFIX, true ) }
+        songsOnDevice.keys.filter { !parentalControlEnabled || !it.isExplicit }
                           .filter {
                               // [showFolder4LocalSongs] must be false and
                               // this song must be inside [currentPath] to show song
@@ -226,14 +224,7 @@ fun OnDeviceSong(
             }
         }
 
-    var currentlyPlaying by remember { mutableStateOf(binder.player.currentMediaItem?.mediaId) }
-    binder.player.DisposableListener {
-        object : Player.Listener {
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int ) {
-                currentlyPlaying = mediaItem?.mediaId
-            }
-        }
-    }
+    val currentMediaItem by binder.player.currentMediaItemState.collectAsState()
     val songItemValues = remember( colorPalette, typography ) {
         SongItem.Values.from( colorPalette, typography )
     }
@@ -278,7 +269,7 @@ fun OnDeviceSong(
                     context = context,
                     binder = binder,
                     hapticFeedback = hapticFeedback,
-                    isPlaying = currentlyPlaying == song.id,
+                    isPlaying = song.shallowCompare( currentMediaItem ),
                     values = songItemValues,
                     itemSelector = itemSelector,
                     navController = navController,

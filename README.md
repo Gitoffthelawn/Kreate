@@ -85,7 +85,7 @@
 Chart and contributions are displayed in our [official website](https://kreate.knighthat.me/translators)
 
 <p align="center">
-    <b>Your language is not listed? [Request one](https://translate.kreate.knighthat.me/project/kreate) now.</b>
+    <b>Your language is not listed? <a href="https://translate.kreate.knighthat.me/project/kreate">Request one</a> now.</b>
 </p>
 
 
@@ -114,7 +114,7 @@ UI/UX designers are welcome!
 **Submit your designs by** [opening a ticket](https://github.com/knighthat/Kreate/issues/new?template=feature_request.yaml)
 
 
-# 🫂 Acknowledgements
+# 🫂 Credits
 
 | Type                                                          | Authors                                                                                                                                | Notes                                                         |
 |---------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
@@ -124,7 +124,7 @@ UI/UX designers are welcome!
 | Translators library                                           | [therealbush/translator](https://github.com/therealbush/translator)                                                                    |                                                               |
 | Lyrics provider                                               | [KuGou](https://www.kugou.com), [LrcLib](https://lrclib.net)                                                                           |                                                               |
 | [HypnoticCanvas](https://github.com/mikepenz/HypnoticCanvas/) | [mikepenz](https://github.com/mikepenz)                                                                                                | A shader modifier for Compose Multiplatform / Jetpack Compose |
-| App logo                                                      | [MedieroAF](https://github.com/MedieroAF)                                                                                              | MedieroAF's logo since 1.3.0                                  |
+| App logo                                                      | [Nicouschulas](https://github.com/Nicouschulas)                                                                                        | Previous logos from [MedieroAF](https://github.com/MedieroAF) |
 | Badges                                                        | [Shields.IO](https://shields.io/), [dcbadge](https://github.com/gitlimes/dcbadge)                                                      |                                                               |
 
 # 💸 Donation

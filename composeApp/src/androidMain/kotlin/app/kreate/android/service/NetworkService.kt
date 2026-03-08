@@ -3,13 +3,15 @@ package app.kreate.android.service
 import android.widget.Toast
 import app.kreate.android.BuildConfig
 import app.kreate.android.Preferences
-import com.metrolist.innertube.models.YouTubeClient
+import app.kreate.android.enums.DohServer
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.serialization.kotlinx.protobuf.protobuf
@@ -18,12 +20,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.ClassDiscriminatorMode
 import kotlinx.serialization.json.Json
+import me.knighthat.innertube.Constants
 import me.knighthat.utils.Toaster
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.logging.HttpLoggingInterceptor
+import org.schabi.newpipe.extractor.NewPipe
 import timber.log.Timber
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
@@ -32,6 +38,7 @@ object NetworkService {
 
     @OptIn(ExperimentalSerializationApi::class)
     val JSON: Json = Json {
+        encodeDefaults = true
         ignoreUnknownKeys = true
         explicitNulls = false
 
@@ -58,8 +65,24 @@ object NetworkService {
                     addInterceptor(
                         HttpLoggingInterceptor().setLevel( HttpLoggingInterceptor.Level.BODY )
                     )
+
+                if( Preferences.DOH_SERVER.value != DohServer.NONE ) {
+                    val url = Preferences.DOH_SERVER.value.url!!        // Cannot be null if other than NONE
+                    val addresses = Preferences.DOH_SERVER.value.address.map( InetAddress::getByName )
+
+                    DnsOverHttps.Builder()
+                                .client( build() )
+                                .url( url )
+                                .bootstrapDnsHosts( addresses )
+                                .build()
+                                .also( ::dns )
+                }
             }
             .build()
+            .also {
+                val downloader = NewPipeDownloaderImpl(it)
+                NewPipe.init(downloader)
+            }
     }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -86,7 +109,12 @@ object NetworkService {
             }
 
             defaultRequest {
-                url( YouTubeClient.API_URL_YOUTUBE_MUSIC )
+                url( Constants.YOUTUBE_MUSIC_URL )
+                contentType( ContentType.Application.Json )
+
+                url {
+                    parameters.append("prettyPrint", "false")
+                }
             }
         }
     }

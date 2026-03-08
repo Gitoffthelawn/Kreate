@@ -8,13 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,8 +39,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
@@ -53,6 +48,7 @@ import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.android.themed.rimusic.component.artist.ArtistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.android.utils.shallowCompare
 import app.kreate.database.models.Song
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.LocalPlayerAwareWindowInsets
@@ -69,9 +65,7 @@ import it.fast4x.rimusic.ui.components.themed.HeaderWithIcon
 import it.fast4x.rimusic.ui.components.themed.NonQueuedMediaItemMenu
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
-import it.fast4x.rimusic.ui.styling.px
 import it.fast4x.rimusic.ui.styling.shimmer
-import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.UpdateYoutubeAlbum
 import it.fast4x.rimusic.utils.UpdateYoutubeArtist
 import it.fast4x.rimusic.utils.asMediaItem
@@ -106,23 +100,11 @@ fun StatisticsPage(
     val menuState = LocalMenuState.current
     val windowInsets = LocalPlayerAwareWindowInsets.current
 
-    val albumThumbnailSizeDp = 108.dp
-    val albumThumbnailSizePx = albumThumbnailSizeDp.px
-    val artistThumbnailSizeDp = 92.dp
-    val artistThumbnailSizePx = artistThumbnailSizeDp.px
-    val playlistThumbnailSizeDp = 108.dp
-    val playlistThumbnailSizePx = playlistThumbnailSizeDp.px
-
-    val endPaddingValues = windowInsets.only(WindowInsetsSides.End).asPaddingValues()
-
     val thumbnailRoundness by Preferences.THUMBNAIL_BORDER_RADIUS
 
     val showStatsListeningTime by Preferences.SHOW_LISTENING_STATS
 
     val context = LocalContext.current
-
-    val thumbnailSizeDp = Dimensions.thumbnails.song
-    val thumbnailSize = thumbnailSizeDp.px
 
     val maxStatisticsItems by Preferences.MAX_NUMBER_OF_STATISTIC_ITEMS
     val from = remember( statisticsType ) { statisticsType.timeStampInMillis() }
@@ -196,14 +178,7 @@ fun StatisticsPage(
                 else Dimensions.contentWidthRightBar
             )
     ) {
-        var currentlyPlaying by remember { mutableStateOf(binder.player.currentMediaItem?.mediaId) }
-        binder.player.DisposableListener {
-            object : Player.Listener {
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int ) {
-                    currentlyPlaying = mediaItem?.mediaId
-                }
-            }
-        }
+        val currentMediaItem by binder.player.currentMediaItemState.collectAsState()
         val songItemValues = remember( colorPalette, typography ) {
             SongItem.Values.from( colorPalette, typography )
         }
@@ -218,7 +193,7 @@ fun StatisticsPage(
             LazyVerticalGrid(
                 state = lazyGridState,
                 columns = GridCells.Adaptive(
-                    if(statisticsCategory == StatisticsCategory.Songs) 200.dp else playlistThumbnailSizeDp
+                    if(statisticsCategory == StatisticsCategory.Songs) 200.dp else PlaylistItem.thumbnailSize().width
                 ),
                 modifier = Modifier
                     .background(colorPalette().background0)
@@ -319,7 +294,7 @@ fun StatisticsPage(
                             binder = binder,
                             hapticFeedback = hapticFeedback,
                             values = songItemValues,
-                            isPlaying = song.id == currentlyPlaying,
+                            isPlaying = song.shallowCompare( currentMediaItem ),
                             navController = navController,
                             thumbnailOverlay = {
                                 BasicText(
@@ -327,7 +302,7 @@ fun StatisticsPage(
                                     style = typography().s.semiBold.center.color(colorPalette().text),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.width( thumbnailSizeDp )
+                                    modifier = Modifier.width( SongItem.thumbnailSize().width )
                                                        .align( Alignment.Center )
                                 )
                             },
@@ -360,7 +335,6 @@ fun StatisticsPage(
 
                         ArtistItem.Render(
                             artist = artist,
-                            widthDp = artistThumbnailSizeDp,
                             values = artistItemValues,
                             navController = navController
                         )
@@ -375,7 +349,6 @@ fun StatisticsPage(
 
                         AlbumItem.Vertical(
                             album = album,
-                            widthDp = albumThumbnailSizeDp,
                             values = albumItemValues,
                             showArtists = false,
                             showYear = false,
@@ -390,7 +363,6 @@ fun StatisticsPage(
                     ) { preview ->
                         PlaylistItem.Vertical(
                             playlist = preview.playlist,
-                            widthDp = playlistThumbnailSizeDp,
                             values = playlistItemValues,
                             songCount = preview.songCount,
                             navController = null,

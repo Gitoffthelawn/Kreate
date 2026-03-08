@@ -45,7 +45,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastAll
@@ -54,7 +53,6 @@ import androidx.compose.ui.util.fastJoinToString
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMapNotNull
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import app.kreate.android.R
@@ -69,6 +67,7 @@ import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.toMediaItem
 import app.kreate.android.utils.renderDescription
 import app.kreate.android.utils.scrollingText
+import app.kreate.android.utils.shallowCompare
 import app.kreate.database.models.Album
 import app.kreate.database.models.Song
 import app.kreate.database.models.SongAlbumMap
@@ -89,8 +88,6 @@ import it.fast4x.rimusic.ui.components.themed.PlayNext
 import it.fast4x.rimusic.ui.components.themed.PlaylistsMenu
 import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
-import it.fast4x.rimusic.ui.styling.px
-import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.asSong
@@ -114,6 +111,7 @@ import me.knighthat.innertube.Constants
 import me.knighthat.innertube.Innertube
 import me.knighthat.innertube.model.InnertubeAlbum
 import me.knighthat.innertube.model.InnertubeSong
+import me.knighthat.innertube.model.Section
 import me.knighthat.utils.PropUtils
 import me.knighthat.utils.Toaster
 import timber.log.Timber
@@ -159,10 +157,8 @@ private fun updateAlbumInDatabase(dbAlbum: Album?, innertubeAlbum: InnertubeAlbu
 @UnstableApi
 private fun LazyListScope.renderSection(
     navController: NavController,
-    section: InnertubeAlbum.Section,
-    sectionTextModifier: Modifier,
-    albumThumbnailSizePx: Int,
-    albumThumbnailSizeDp: Dp
+    section: Section,
+    sectionTextModifier: Modifier
 ) {
     stickyHeader( System.identityHashCode( section ) ) {
         Text(
@@ -191,7 +187,7 @@ private fun LazyListScope.renderSection(
                     items = it,
                     key = InnertubeAlbum::id
                 ) { item ->
-                    AlbumItem.Vertical( item, albumThumbnailSizeDp, albumItemValues, navController )
+                    AlbumItem.Vertical( item, albumItemValues, navController )
                 }
             }
         }
@@ -237,9 +233,6 @@ fun YouTubeAlbum(
         val sectionTextModifier = remember {
             Modifier.padding( 16.dp, 24.dp, 16.dp, 8.dp )
         }
-        val albumThumbnailSizeDp = 108.dp
-        val albumThumbnailSizePx = albumThumbnailSizeDp.px
-        val thumbnailSizeDp = Dimensions.thumbnails.song
 
         //<editor-fold desc="Buttons">
         val itemSelector = remember {
@@ -335,14 +328,7 @@ fun YouTubeAlbum(
         }
         LaunchedEffect( Unit ) { onRefresh() }
 
-        var currentlyPlaying by remember { mutableStateOf(binder.player.currentMediaItem?.mediaId) }
-        binder.player.DisposableListener {
-            object : Player.Listener {
-                override fun onMediaItemTransition( mediaItem: MediaItem?, reason: Int ) {
-                    currentlyPlaying = mediaItem?.mediaId
-                }
-            }
-        }
+        val currentMediaItem by binder.player.currentMediaItemState.collectAsState()
         val songItemValues = remember( colorPalette, typography ) {
             SongItem.Values.from( colorPalette, typography )
         }
@@ -438,7 +424,7 @@ fun YouTubeAlbum(
 
                     item( "subtitle" ) {
                         BasicText(
-                            text = albumPage?.subtitle.orEmpty(),
+                            text = albumPage?.subtitle?.runs?.fastJoinToString( "" ) { it.text }.orEmpty(),
                             style = typography().xs.medium.copy( colorPalette().textSecondary ),
                             maxLines = 1
                         )
@@ -499,7 +485,7 @@ fun YouTubeAlbum(
                                     context = context,
                                     binder = binder,
                                     hapticFeedback = hapticFeedback,
-                                    isPlaying = currentlyPlaying == song.id,
+                                    isPlaying = song.shallowCompare( currentMediaItem ),
                                     values = songItemValues,
                                     itemSelector = itemSelector,
                                     navController = navController,
@@ -515,7 +501,7 @@ fun YouTubeAlbum(
                                                                 ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.width( thumbnailSizeDp )
+                                            modifier = Modifier.width( SongItem.thumbnailSize().width )
                                                                .align( Alignment.Center )
                                         )
                                     },
@@ -544,9 +530,7 @@ fun YouTubeAlbum(
                         }
 
                     albumPage?.sections?.fastForEach {
-                        renderSection(
-                            navController, it, sectionTextModifier, albumThumbnailSizePx, albumThumbnailSizeDp
-                        )
+                        renderSection( navController, it, sectionTextModifier )
                     }
 
                     albumPage?.description?.also( this::renderDescription )

@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import app.kreate.android.enums.DohServer
 import app.kreate.android.enums.PlatformIndicatorType
 import app.kreate.android.utils.innertube.getSystemCountryCode
 import app.kreate.constant.Language
@@ -146,6 +147,18 @@ sealed class Preferences<T>(
         }
         val HOME_LIBRARY_ITEM_SIZE by lazy {
             Enum( preferences, "HomeLibraryItemSize", "LibraryItemSizeEnum", HomeItemSize.SMALL )
+        }
+        val SONG_THUMBNAIL_SIZE by lazy {
+            Int(preferences, "SongItemSize", "", 54)
+        }
+        val ALBUM_THUMBNAIL_SIZE by lazy {
+            Int(preferences, "AlbumItemSize", "", 128)
+        }
+        val ARTIST_THUMBNAIL_SIZE by lazy {
+            Int(preferences, "ArtistItemSize", "", 128)
+        }
+        val PLAYLIST_THUMBNAIL_SIZE by lazy {
+            Int(preferences, "PlaylistItemSize", "", 128)
         }
         //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Sort by">
@@ -695,6 +708,11 @@ sealed class Preferences<T>(
         }
         val PROXY_PORT  by lazy {
             Int( preferences, "ProxyPort", "proxyPort", 1080 )
+        }
+        //</editor-fold>
+        //<editor-fold defaultstate="collapsed" desc="DoH">
+        val DOH_SERVER by lazy {
+            Enum(preferences, "DnsOverHttpsServer", "", DohServer.NONE)
         }
         //</editor-fold>
         //<editor-fold defaultstate="collapsed" desc="Custom light colors">

@@ -6,11 +6,14 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.MainThread
+import androidx.annotation.OptIn
 import androidx.core.animation.doOnEnd
 import androidx.core.animation.doOnStart
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -26,9 +29,16 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import app.kreate.android.Preferences
 import app.kreate.android.service.Discord
+import dagger.hilt.android.qualifiers.ApplicationContext
 import it.fast4x.rimusic.utils.isAtLeastAndroid10
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import timber.log.Timber
 import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -37,15 +47,14 @@ import kotlin.math.pow
 /**
  * A custom ExoPlayer with additional features:
  * - Fading effect
+ * - Observable states (current mediaItem, timeline, window, etc.)
  */
-@UnstableApi
-class CustomExoPlayer(
-    dataSourceFactory: DataSource.Factory,
-    preferences: SharedPreferences,
-    private val context: Context,
+@OptIn(UnstableApi::class)
+@Singleton
+class CustomExoPlayer private constructor(
     private val discord: Discord,
-    private val player: ExoPlayer = makeBasePlayer( context, preferences, dataSourceFactory )
-): ExoPlayer by player {
+    private val player: ExoPlayer
+): ExoPlayer by player, Player.Listener {
 
     companion object {
 
@@ -118,7 +127,27 @@ class CustomExoPlayer(
         }
     }
 
+    @Inject
+    constructor(
+        @Named("playerDataSource") dataSourceFactory: DataSource.Factory,
+        @Named("plain") preferences: SharedPreferences,
+        @ApplicationContext context: Context,
+        discord: Discord
+    ) : this(discord, makeBasePlayer( context, preferences, dataSourceFactory ))
+
+    private val _currentMediaItemState = MutableStateFlow<MediaItem?>(null)
+    private val _currentTimelineState = MutableStateFlow(Timeline.EMPTY)
+    private val _currentWindowState = MutableStateFlow<Timeline.Window?>(null)
+
     private var volumeAnimator: ValueAnimator? = null
+
+    val currentMediaItemState = _currentMediaItemState.asStateFlow()
+    val currentTimelineState = _currentTimelineState.asStateFlow()
+    val currentWindowState = _currentWindowState.asStateFlow()
+
+    init {
+        this.addListener( this )
+    }
 
     private fun stopFadingEffect() {
         volumeAnimator?.cancel()
@@ -198,19 +227,6 @@ class CustomExoPlayer(
         }
     }
 
-    fun onIsPlayingChanged(isPlaying: Boolean) {
-        if( !Preferences.isLoggedInToDiscord() )
-            return
-
-        val mediaItem = player.currentMediaItem ?: return
-        val startTime = System.currentTimeMillis() - player.currentPosition
-        @SuppressLint("NewApi")     // [Preferences.isLoggedInToDiscord] already verified it
-        if( isPlaying )
-            discord.updateMediaItem( mediaItem, startTime )
-        else
-            discord.pause( mediaItem, startTime )
-    }
-
     private fun pause0( updateDiscord: Boolean ) {
         fun action() {
             player.pause()
@@ -241,6 +257,7 @@ class CustomExoPlayer(
 
     override fun release() {
         stopFadingEffect()
+        player.removeListener( this )
         player.release()
     }
 
@@ -287,4 +304,35 @@ class CustomExoPlayer(
             Timber.tag( this::class.java.simpleName ).e( e )
             0
         }
+
+    override fun getAudioSessionId(): Int = player.audioSessionId
+
+    override fun onMediaItemTransition( mediaItem: MediaItem?, reason: Int ) {
+        // Don't update [_currentMediaItemState] when on repeat
+        if( reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT )
+            return
+
+        _currentMediaItemState.update { mediaItem }
+        _currentWindowState.update {
+            mediaItem?.let {
+                _currentTimelineState.value.getWindow( currentMediaItemIndex, Timeline.Window() )
+            }
+        }
+    }
+
+    override fun onTimelineChanged( timeline: Timeline, reason: Int ) =
+        _currentTimelineState.update { timeline }
+
+    override fun onIsPlayingChanged( isPlaying: Boolean ) {
+        if( !Preferences.isLoggedInToDiscord() )
+            return
+
+        val mediaItem = player.currentMediaItem ?: return
+        val startTime = System.currentTimeMillis() - player.currentPosition
+        @SuppressLint("NewApi")     // [Preferences.isLoggedInToDiscord] already verified it
+        if( isPlaying )
+            discord.updateMediaItem( mediaItem, startTime )
+        else
+            discord.pause( mediaItem, startTime )
+    }
 }

@@ -12,6 +12,8 @@
 -dontwarn java.beans.Introspector
 -dontwarn java.beans.PropertyDescriptor
 -dontwarn javax.script.ScriptEngineFactory
+-dontwarn com.google.re2j.Matcher
+-dontwarn com.google.re2j.Pattern
 # Removing these rules won't result in compile-time error
 # But causes crash on some devices
 -keep class org.mozilla.javascript.** { *; }

@@ -54,18 +54,15 @@ jobs:
 
       - name: Get downstream (local) version
         id: downstream
-        # Output is current version located inside composeApp/build.gradle.kts
-        # android {
-        #   create( "" ) {
-        #     versionName = "..."
-        #     versionName = 000
-        #   }
-        # }
+        # Output is current version located inside gradle/libs.versions.toml
+        # [versions]
+        #   version-code = "129"
+        #   version-name = "1.9.3"
         run: |
-          VERSION_NAME=$(grep -E '^\s*versionName\s*= "' composeApp/build.gradle.kts | awk -F '"' '{print $2}')
+          VERSION_NAME=$(grep -E '^\s*version-name\s*= "' gradle/libs.versions.toml | awk -F '"' '{print $2}')
           echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
           
-          VERSION_CODE=$(grep -E '^\s*val VERSION_CODE\s*=\s*' composeApp/build.gradle.kts | awk -F '= ' '{print $2}')
+          VERSION_CODE=$(grep -E '^\s*version-code\s*= "' gradle/libs.versions.toml | awk -F '"' '{print $2}')
           echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
 
       - name: Get upstream version
@@ -106,7 +103,7 @@ jobs:
         # !: Not
         # -e: true if file exists
         run: |
-          FILE_PATH=fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}4.txt
+          FILE_PATH=fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt
           if [ ! -e "$FILE_PATH" ]; then
             echo "::error::$FILE_PATH release note doesn't exist"
             exit 1
@@ -176,7 +173,7 @@ jobs:
         run: echo "${{ secrets.PROD_KEYSTORE_SHA256 }} $KEYSTORE_PATH/$KEYSTORE_FILENAME" | sha256sum -c
 
       - name: Setup Java 21
-        uses: actions/setup-java@v5.1.0
+        uses: actions/setup-java@v5.2.0
         with:
           java-version: "21"
           distribution: "corretto"
@@ -216,7 +213,7 @@ jobs:
           echo "path=composeApp/build/outputs/apk/$LOWERCASE_PLATFORM${ARCH}Prod/$LOWERCASE_BUILD_TYPE" >> $GITHUB_OUTPUT
 
       - name: Upload artifacts for uploading
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.platform }}-${{ matrix.architect }}-${{ matrix.type }}
           path: ${{ steps.build_path.outputs.path }}/*.apk
@@ -227,7 +224,7 @@ jobs:
 
     steps:
       - name: Download signed APKs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # The downloaded artifacts will be in the same directory specified by path.
           merge-multiple: true

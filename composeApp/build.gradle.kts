@@ -9,7 +9,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 val APP_NAME = "Kreate"
-val VERSION_CODE = 126
 
 private fun String.sha256(): String {
     val digest = MessageDigest.getInstance( "SHA-256" )
@@ -77,7 +76,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.guava)
-            implementation(libs.extractor)
+            implementation(libs.newpipe.extractor)
             implementation(libs.nanojson)
             implementation(libs.androidx.webkit)
 
@@ -103,6 +102,7 @@ kotlin {
 
             // Dependency injection
             implementation( libs.android.hilt )
+            implementation( libs.android.hilt.navigation )
 
             implementation(libs.androidx.lifecycle.runtime)
             implementation(libs.androidx.lifecycle.process)
@@ -121,7 +121,6 @@ kotlin {
             implementation(projects.kugou)
             implementation(projects.lrclib)
             implementation( projects.discord )
-            implementation( projects.metrolist )
 
             // Room KMP
             implementation( libs.room.runtime )
@@ -143,6 +142,7 @@ kotlin {
 
             implementation( libs.bundles.ktor )
             implementation( libs.okhttp3.logging.interceptor )
+            implementation( libs.okhttp3.dns.over.https )
 
             implementation( libs.math3 )
 
@@ -177,7 +177,7 @@ android {
 
     defaultConfig {
         applicationId = "me.knighthat.kreate"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
 
         /*
@@ -209,19 +209,6 @@ android {
             manifestPlaceholders["appName"] = "$APP_NAME-debug"
         }
 
-        // To test compatibility after minification process
-        create( "debugR8" ) {
-            initWith( maybeCreate( "debug" ) )
-
-            // Package optimization
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-defaults.txt"),
-                "debug-proguard-rules.pro"
-            )
-        }
-
         release {
             isDefault = true
 
@@ -242,6 +229,8 @@ android {
     flavorDimensions += listOf( "platform", "arch", "env" )
     //noinspection ChromeOsAbiSupport
     productFlavors {
+        val vCode = libs.versions.version.code.get().toInt()
+
         //<editor-fold desc="Platforms">
         create("github") {
             dimension = "platform"
@@ -271,7 +260,7 @@ android {
             dimension = "arch"
 
             // App's properties
-            versionCode = (VERSION_CODE * 10) + 1
+            versionCode = (vCode * 10) + 1
 
             // Build architecture
             ndk { abiFilters += "armeabi-v7a" }
@@ -280,7 +269,7 @@ android {
             dimension = "arch"
 
             // App's properties
-            versionCode = (VERSION_CODE * 10) + 2
+            versionCode = (vCode * 10) + 2
 
             // Build architecture
             ndk { abiFilters += "arm64-v8a" }
@@ -289,7 +278,7 @@ android {
             dimension = "arch"
 
             // App's properties
-            versionCode = (VERSION_CODE * 10) + 3
+            versionCode = (vCode * 10) + 3
 
             // Build architecture
             ndk { abiFilters += "x86" }
@@ -298,7 +287,7 @@ android {
             dimension = "arch"
 
             // App's properties
-            versionCode = (VERSION_CODE * 10) + 4
+            versionCode = (vCode * 10) + 4
 
             // Build architecture
             ndk { abiFilters += "x86_64" }
@@ -319,7 +308,7 @@ android {
             versionName = longFormat.format (Date() )
             manifestPlaceholders["appName"] = "Nightly"
             // The idea is to combine build date and current version code together
-            versionCode = "${shortFormat.format( Date() )}$VERSION_CODE".toInt()
+            versionCode = "${shortFormat.format( Date() )}$vCode".toInt()
         }
         create( "prod" ) {
             dimension = "env"
@@ -331,9 +320,9 @@ android {
                 signingConfig = signingConfigs.getByName( "production" )
 
             // App's properties
-            versionName = "1.9.0"
+            versionName = libs.versions.version.name.get()
             manifestPlaceholders["appName"] = APP_NAME
-            versionCode = VERSION_CODE
+            versionCode = vCode
         }
         //</editor-fold>
     }
@@ -447,7 +436,7 @@ licenseReport {
 val copyReleaseNote = tasks.register<Copy>("copyReleaseNote" ) {
     from( "$rootDir/fastlane/metadata/android/en-US/changelogs" )
 
-    val fileName = "$VERSION_CODE.txt"
+    val fileName = "${libs.versions.version.code.get()}.txt"
     setIncludes( listOf( fileName ) )
 
     into( "$rootDir/composeApp/src/androidMain/res/raw" )

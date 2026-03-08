@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFilter
 import androidx.compose.ui.util.fastMapNotNull
@@ -45,9 +46,6 @@ import app.kreate.android.themed.rimusic.component.tab.Sort
 import app.kreate.android.utils.innertube.CURRENT_LOCALE
 import app.kreate.android.utils.innertube.InnertubeUtils
 import app.kreate.database.models.PlaylistPreview
-import app.kreate.util.MONTHLY_PREFIX
-import app.kreate.util.PINNED_PREFIX
-import app.kreate.util.YTP_PREFIX
 import it.fast4x.compose.persist.persistList
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.colorPalette
@@ -103,14 +101,6 @@ fun HomeLibrary(
 
     // Non-vital
     var playlistType by Preferences.HOME_LIBRARY_TYPE
-    val listPrefix by remember {derivedStateOf {
-        when( playlistType ) {
-            PlaylistsType.Playlist -> ""    // Matches everything
-            PlaylistsType.PinnedPlaylist -> PINNED_PREFIX
-            PlaylistsType.MonthlyPlaylist -> MONTHLY_PREFIX
-            PlaylistsType.YTPlaylist -> YTP_PREFIX
-        }
-    }}
 
     var items by persistList<PlaylistPreview>("home/playlists")
     var onlinePlaylists by remember { mutableStateOf( emptyList<InnertubePlaylist>() ) }
@@ -119,13 +109,17 @@ fun HomeLibrary(
 
     val itemsOnDisplay by remember {derivedStateOf {
         items.fastFilter {
-                 (playlistType == PlaylistsType.YTPlaylist && it.playlist.isYoutubePlaylist)
-                         || it.playlist.name.startsWith( listPrefix, true )
+                 when( playlistType ) {
+                     PlaylistsType.MonthlyPlaylist -> it.playlist.isMonthly
+                     PlaylistsType.PinnedPlaylist -> it.playlist.isPinned
+                     PlaylistsType.YTPlaylist -> it.playlist.isYoutubePlaylist
+                     PlaylistsType.Playlist -> true
+                 }
              }
              .fastFilter { search appearsIn it.playlist.cleanName() }
     }}
     val onlineOnDisplay by remember {derivedStateOf {
-        onlinePlaylists.fastFilter { listPrefix.isBlank() || playlistType == PlaylistsType.YTPlaylist }
+        onlinePlaylists.fastFilter { playlistType === PlaylistsType.Playlist }
                        .fastFilter { search appearsIn it.name }
     }}
 
@@ -133,6 +127,9 @@ fun HomeLibrary(
         Sort(menuState, Preferences.HOME_LIBRARY_SORT_BY, Preferences.HOME_LIBRARY_SORT_ORDER)
     }
     val itemSize = remember { ItemSize(Preferences.HOME_LIBRARY_ITEM_SIZE, menuState) }
+    val sizeDp by remember {derivedStateOf {
+        DpSize(itemSize.size.dp, itemSize.size.dp)
+    }}
 
     //<editor-fold desc="Songs shuffler">
     /**
@@ -281,9 +278,9 @@ fun HomeLibrary(
                     ) { playlist ->
                         PlaylistItem.Vertical(
                             innertubePlaylist = playlist,
-                            widthDp = itemSize.size.dp,
                             values = playlistItemValues,
                             navController = null,
+                            sizeDp = sizeDp,
                             onClick = {
                                 search.hideIfEmpty()
 
@@ -300,10 +297,10 @@ fun HomeLibrary(
                     ) { preview ->
                         PlaylistItem.Vertical(
                             playlist = preview.playlist,
-                            widthDp = itemSize.size.dp,
                             values = playlistItemValues,
                             songCount = preview.songCount,
                             navController = navController,
+                            sizeDp = sizeDp,
                             onClick = search::hideIfEmpty
                         )
                     }

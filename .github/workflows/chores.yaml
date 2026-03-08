@@ -70,7 +70,7 @@ jobs:
           submodules: true
 
       - name: Setup Java 21
-        uses: actions/setup-java@v5.1.0
+        uses: actions/setup-java@v5.2.0
         with:
           java-version: "21"
           distribution: "corretto"
@@ -246,7 +246,7 @@ jobs:
         run: rm -rf "$WORKFLOWS_FILENAME"
 
       - name: Download translators list
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: translators
           repository: knighthat/Kreate-docs
@@ -308,7 +308,7 @@ jobs:
           echo "Queried: $TOTAL_COUNT runs"
 
       - name: Upload queried workflows file
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: workflows
           path: workflows.json

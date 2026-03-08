@@ -13,9 +13,6 @@ import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import app.kreate.android.R
 import app.kreate.android.service.DownloadHelper
-import app.kreate.android.service.NetworkService
-import com.metrolist.innertube.InnerTube
-import com.metrolist.innertube.pages.NewPipeUtils
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -34,13 +31,6 @@ class MyDownloadService : DownloadService(
 
     @Inject
     lateinit var downloadHelper: DownloadHelper
-
-    override fun onCreate() {
-        NewPipeUtils.client = NetworkService.engine
-        InnerTube.httpClient = NetworkService.client
-
-        super.onCreate()
-    }
 
     override fun getDownloadManager(): DownloadManager {
         MyDownloadHelper.instance = downloadHelper

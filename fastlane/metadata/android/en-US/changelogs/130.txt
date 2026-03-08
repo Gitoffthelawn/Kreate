@@ -1,0 +1,13 @@
+New:
+- Icon set from Nicouschulas
+- Thumbnail's size slider
+- DNS over HTTPS
+
+Fixes:
+- Multiline address bar in local songs
+- Random crashes when interact with media control
+- Update prompt when no update available
+- Typo "General" in Network Settings
+
+Changes:
+- Drop support for Android 5

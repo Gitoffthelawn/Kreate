@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
@@ -46,16 +47,12 @@ import app.kreate.android.themed.rimusic.component.album.AlbumItem
 import app.kreate.database.models.Album
 import app.kreate.database.models.Playlist
 import app.kreate.database.models.PlaylistPreview
-import app.kreate.util.MONTHLY_PREFIX
-import app.kreate.util.PINNED_PREFIX
 import app.kreate.util.cleanPrefix
 import it.fast4x.rimusic.Database
 import it.fast4x.rimusic.colorPalette
 import it.fast4x.rimusic.enums.NavRoutes
 import it.fast4x.rimusic.typography
-import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
-import it.fast4x.rimusic.ui.styling.px
 import it.fast4x.rimusic.utils.isNetworkConnected
 import it.fast4x.rimusic.utils.semiBold
 import kotlinx.coroutines.Dispatchers
@@ -93,9 +90,6 @@ fun AlbumsItemGridMenu(
         mutableStateOf(0.dp)
     }
 
-    val thumbnailSizeDp = Dimensions.thumbnails.song + 20.dp
-    val thumbnailSizePx = thumbnailSizeDp.px
-
         AnimatedContent(
             targetState = isViewingPlaylists,
             transitionSpec = {
@@ -115,15 +109,15 @@ fun AlbumsItemGridMenu(
                 }.collectAsState( emptyList(), Dispatchers.IO )
 
                 val pinnedPlaylists = playlistPreviews.filter {
-                    it.playlist.name.startsWith(PINNED_PREFIX, 0, true)
+                    it.playlist.isPinned
                             && if (isNetworkConnected(context)) !(it.playlist.isYoutubePlaylist && !it.playlist.isEditable) else !it.playlist.isYoutubePlaylist
                 }
 
-                val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.name.startsWith(PINNED_PREFIX) }
+                val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.isPinned }
 
                 val unpinnedPlaylists = playlistPreviews.filter {
-                    !it.playlist.name.startsWith(PINNED_PREFIX, 0, true) &&
-                            !it.playlist.name.startsWith(MONTHLY_PREFIX, 0, true) &&
+                    !it.playlist.isPinned &&
+                            !it.playlist.isMonthly &&
                             !it.playlist.isYoutubePlaylist
                 }
                 var isCreatingNewPlaylist by rememberSaveable {
@@ -348,8 +342,9 @@ fun AlbumsItemGridMenu(
                         val albumItemValues = remember( appearance ) {
                             AlbumItem.Values.from( appearance )
                         }
+                        val sizeDp = DpSize(AlbumItem.MENU_THUMBNAIL_SIZE.dp, AlbumItem.MENU_THUMBNAIL_SIZE.dp)
 
-                        AlbumItem.Horizontal( album, thumbnailSizeDp, albumItemValues, navController )
+                        AlbumItem.Horizontal( album, albumItemValues, navController, sizeDp = sizeDp )
                     }
                 ) {
 

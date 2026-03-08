@@ -57,19 +57,17 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
 import app.kreate.android.R
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.android.utils.shallowCompare
 import app.kreate.database.models.Playlist
 import app.kreate.database.models.PlaylistPreview
 import app.kreate.database.models.Song
 import app.kreate.util.MODIFIED_PREFIX
-import app.kreate.util.MONTHLY_PREFIX
-import app.kreate.util.PINNED_PREFIX
 import app.kreate.util.cleanPrefix
 import app.kreate.util.readableText
 import it.fast4x.rimusic.Database
@@ -88,7 +86,6 @@ import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.ui.styling.favoritesIcon
 import it.fast4x.rimusic.ui.styling.px
-import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.addSongToYtPlaylist
 import it.fast4x.rimusic.utils.addToYtLikedSong
@@ -753,14 +750,14 @@ fun MediaItemMenu(
             }.collectAsState( emptyList(), Dispatchers.IO )
 
             val pinnedPlaylists = playlistPreviews.filter {
-                it.playlist.name.startsWith(PINNED_PREFIX, 0, true)
+                it.playlist.isPinned
                         && if (isNetworkConnected(context)) !(it.playlist.isYoutubePlaylist && !it.playlist.isEditable) else !it.playlist.isYoutubePlaylist
             }
-            val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.name.startsWith(PINNED_PREFIX) }
+            val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.isPinned }
 
             val unpinnedPlaylists = playlistPreviews.filter {
-                !it.playlist.name.startsWith(PINNED_PREFIX, 0, true) &&
-                !it.playlist.name.startsWith(MONTHLY_PREFIX, 0, true) &&
+                !it.playlist.isPinned &&
+                !it.playlist.isMonthly &&
                         !it.playlist.isYoutubePlaylist //&&
                 //!it.playlist.name.startsWith(PIPED_PREFIX, 0, true)
             }
@@ -980,14 +977,7 @@ fun MediaItemMenu(
                     modifier = Modifier
                         .padding(end = 12.dp)
                 ) {
-                    var currentlyPlaying by remember { mutableStateOf(binder.player.currentMediaItem?.mediaId) }
-                    binder.player.DisposableListener {
-                        object : Player.Listener {
-                            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int ) {
-                                currentlyPlaying = mediaItem?.mediaId
-                            }
-                        }
-                    }
+                    val currentMediaItem by binder.player.currentMediaItemState.collectAsState()
                     val songItemValues = remember( colorPalette, typography ) {
                         SongItem.Values.from( colorPalette, typography )
                     }
@@ -997,7 +987,7 @@ fun MediaItemMenu(
                         context = context,
                         binder = binder,
                         hapticFeedback = hapticFeedback,
-                        isPlaying = mediaItem.mediaId == currentlyPlaying,
+                        isPlaying = mediaItem.shallowCompare( currentMediaItem ),
                         values = songItemValues,
                         navController = navController
                     )
@@ -1599,15 +1589,15 @@ fun AddToPlaylistItemMenu(
     }.collectAsState( emptyList(), Dispatchers.IO )
 
     val pinnedPlaylists = playlistPreviews.filter {
-        it.playlist.name.startsWith(PINNED_PREFIX, 0, true)
+        it.playlist.isPinned
                 && if (isNetworkConnected(context)) !(it.playlist.isYoutubePlaylist && !it.playlist.isEditable) else !it.playlist.isYoutubePlaylist
     }
 
-    val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.name.startsWith(PINNED_PREFIX) }
+    val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.isPinned }
 
     val unpinnedPlaylists = playlistPreviews.filter {
-        !it.playlist.name.startsWith(PINNED_PREFIX, 0, true) &&
-                !it.playlist.name.startsWith(MONTHLY_PREFIX, 0, true) &&
+        !it.playlist.isPinned &&
+                !it.playlist.isMonthly &&
                 !it.playlist.isYoutubePlaylist
     }
 
@@ -1813,15 +1803,15 @@ fun AddToPlaylistArtistSongsMenu(
     }.collectAsState( emptyList(), Dispatchers.IO )
 
     val pinnedPlaylists = playlistPreviews.filter {
-        it.playlist.name.startsWith(PINNED_PREFIX, 0, true)
+        it.playlist.isPinned
                 && if (isNetworkConnected(context)) !(it.playlist.isYoutubePlaylist && !it.playlist.isEditable) else !it.playlist.isYoutubePlaylist
     }
 
-    val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.name.startsWith(PINNED_PREFIX) }
+    val youtubePlaylists = playlistPreviews.filter { it.playlist.isEditable && it.playlist.isYoutubePlaylist && !it.playlist.isPinned }
 
     val unpinnedPlaylists = playlistPreviews.filter {
-        !it.playlist.name.startsWith(PINNED_PREFIX, 0, true) &&
-                !it.playlist.name.startsWith(MONTHLY_PREFIX, 0, true) &&
+        !it.playlist.isPinned &&
+                !it.playlist.isMonthly &&
                 !it.playlist.isYoutubePlaylist
     }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -49,8 +50,6 @@ import androidx.compose.ui.util.fastFold
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import app.kreate.android.Preferences
@@ -63,10 +62,9 @@ import app.kreate.android.themed.rimusic.component.playlist.PlaylistItem
 import app.kreate.android.themed.rimusic.component.playlist.PlaylistSongsSort
 import app.kreate.android.themed.rimusic.component.playlist.PositionLock
 import app.kreate.android.themed.rimusic.component.song.SongItem
+import app.kreate.android.utils.shallowCompare
 import app.kreate.database.models.Song
 import app.kreate.database.models.SongPlaylistMap
-import app.kreate.util.EXPLICIT_PREFIX
-import app.kreate.util.MONTHLY_PREFIX
 import app.kreate.util.cleanPrefix
 import app.kreate.util.toDuration
 import com.github.doyaaaaaken.kotlincsv.client.KotlinCsvExperimental
@@ -108,9 +106,7 @@ import it.fast4x.rimusic.ui.styling.Dimensions
 import it.fast4x.rimusic.ui.styling.LocalAppearance
 import it.fast4x.rimusic.ui.styling.onOverlay
 import it.fast4x.rimusic.ui.styling.overlay
-import it.fast4x.rimusic.ui.styling.px
 import it.fast4x.rimusic.utils.DeletePlaylist
-import it.fast4x.rimusic.utils.DisposableListener
 import it.fast4x.rimusic.utils.addNext
 import it.fast4x.rimusic.utils.asMediaItem
 import it.fast4x.rimusic.utils.center
@@ -308,7 +304,7 @@ fun LocalPlaylistSongs(
     }
     val resetThumbnail = ResetThumbnail { resetThumbnail() }
 
-    val locator = Locator( lazyListState, ::getSongs )
+    val locator = Locator( lazyListState, ::getSongs, 3 )
 
     //<editor-fold defaultstate="collapsed" desc="Smart recommendation">
     val recommendationsNumber by Preferences.MAX_NUMBER_OF_SMART_RECOMMENDATIONS
@@ -348,18 +344,15 @@ fun LocalPlaylistSongs(
                  ?.take( recommendationsNumber.toInt() )
                  ?.associate { songItem ->
                      with( songItem ) {
-                         // Do NOT use [Utils#Innertube.SongItem.asSong]
-                         // It doesn't have explicit prefix
-                         val prefix = if( explicit ) EXPLICIT_PREFIX else ""
-
                          Song(
                              // Song's ID & title must not be "null". If they are,
                              // Something is wrong with Innertube.
-                             id = "$prefix${info!!.endpoint!!.videoId!!}",
+                             id = info!!.endpoint!!.videoId!!,
                              title = info!!.name!!,
                              artistsText = authors?.joinToString { author -> author.name ?: "" },
                              durationText = durationText,
-                             thumbnailUrl = thumbnail?.url
+                             thumbnailUrl = thumbnail?.url,
+                             isExplicit = explicit
                          ) to (0..items.size).random()      // Map this song with a random position from [items]
                      }
                  }
@@ -382,7 +375,7 @@ fun LocalPlaylistSongs(
                  }
              }
              .distinctBy( Song::id )
-             .filter { !parentalControlEnabled || !it.title.startsWith( EXPLICIT_PREFIX ) }
+             .filter { !parentalControlEnabled || !it.isExplicit }
              .filter { song ->
                  // Without cleaning, user can search explicit songs with "e:"
                  // I kinda want this to be a feature, but it seems unnecessary
@@ -445,22 +438,11 @@ fun LocalPlaylistSongs(
     downloadAllDialog.Render()
     deleteDownloadsDialog.Render()
 
-    val playlistThumbnailSizeDp = Dimensions.thumbnails.playlist
-    val playlistThumbnailSizePx = playlistThumbnailSizeDp.px
-
     val rippleIndication = ripple(bounded = false)
 
-    val playlistNotMonthlyType =
-        playlist?.name?.startsWith(MONTHLY_PREFIX, 0, true) == false
+    val playlistNotMonthlyType = playlist?.isMonthly == false
 
-    var currentlyPlaying by remember { mutableStateOf(binder.player.currentMediaItem?.mediaId) }
-    binder.player.DisposableListener {
-        object : Player.Listener {
-            override fun onMediaItemTransition( mediaItem: MediaItem?, reason: Int ) {
-                currentlyPlaying = mediaItem?.mediaId
-            }
-        }
-    }
+    val currentMediaItem by binder.player.currentMediaItemState.collectAsState()
     val songItemValues = remember( colorPalette, typography ) {
         SongItem.Values.from( colorPalette, typography )
     }
@@ -480,9 +462,7 @@ fun LocalPlaylistSongs(
         //LookaheadScope {
         LazyColumn(
             state = reorderingState.lazyListState,
-            //contentPadding = LocalPlayerAwareWindowInsets.current
-            //    .only(WindowInsetsSides.Vertical + WindowInsetsSides.End)
-            //    .asPaddingValues(),
+            contentPadding = PaddingValues(bottom = Dimensions.bottomSpacer),
             modifier = Modifier
                 .background(colorPalette().background0)
                 .fillMaxSize()
@@ -525,7 +505,6 @@ fun LocalPlaylistSongs(
                     playlist?.let {
                         PlaylistItem.Thumbnail(
                             playlist = it,
-                            sizeDp = playlistThumbnailSizeDp,
                             modifier = Modifier.padding( all = 14.dp ),
                             showPlatformIcon = false
                         )
@@ -729,7 +708,7 @@ fun LocalPlaylistSongs(
                             context = context,
                             binder = binder,
                             hapticFeedback = hapticFeedback,
-                            isPlaying = song.id == currentlyPlaying,
+                            isPlaying = song.shallowCompare( currentMediaItem ),
                             values = songItemValues,
                             isInPlaylistScreen = true,
                             itemSelector = itemSelector,
@@ -790,13 +769,6 @@ fun LocalPlaylistSongs(
                     }
                 }
 
-            }
-
-            item(
-                key = "footer",
-                contentType = 0,
-            ) {
-                Spacer(modifier = Modifier.height(Dimensions.bottomSpacer))
             }
         }
 
